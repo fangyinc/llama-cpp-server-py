@@ -1,0 +1,98 @@
+# Build llama-cpp-server, Adapted from https://github.com/ggerganov/llama.cpp/blob/master/.github/workflows/build.yml
+name: Build server
+
+on:
+  workflow_dispatch: # allows manual triggering
+    inputs:
+      version:
+        description: 'Version tag to build (e.g., v1.11.3)'
+        required: false
+        type: string
+  push:
+    branches:
+      - master
+    paths: ['.github/workflows/build-server.yml', 'llama-cpp-server*/**']
+  pull_request:
+    paths: ['.github/workflows/build-server.yml', 'llama-cpp-server*/**']
+
+env:
+  LLAMA_LOG_COLORS: 1
+  LLAMA_LOG_PREFIX: 1
+  LLAMA_LOG_TIMESTAMPS: 1
+  LLAMA_LOG_VERBOSITY: 10
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  ubuntu-latest-cmake:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          ref: ${{ github.event.inputs.version || github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Dependencies
+        id: depends
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential libcurl4-openssl-dev
+
+      - name: Build
+        id: cmake_build
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DLLAMA_FATAL_WARNINGS=ON -DLLAMA_CURL=ON -DGGML_RPC=ON -DBUILD_SHARED_LIBS=OFF
+          cmake --build . --config Release -j $(nproc)
+
+      - name: Test
+        id: cmake_test
+        run: |
+          cd build
+          ctest -L 'main|curl' --verbose --timeout 900
+
+      - name: Test llama2c conversion
+        id: llama2c_test
+        run: |
+          cd build
+          echo "Fetch tokenizer"
+          wget https://huggingface.co/karpathy/tinyllamas/resolve/main/stories260K/tok512.bin
+          echo "Fetch llama2c model"
+          wget https://huggingface.co/karpathy/tinyllamas/resolve/main/stories260K/stories260K.bin
+          ./bin/llama-convert-llama2c-to-ggml --copy-vocab-from-model ./tok512.bin --llama2c-model stories260K.bin --llama2c-output-model stories260K.gguf
+          ./bin/llama-cli -m stories260K.gguf -p "One day, Lily met a Shoggoth" -n 500 -c 256
+
+      - name: Determine tag name
+        id: tag
+        shell: bash
+        run: |
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          SHORT_HASH="$(git rev-parse --short=7 HEAD)"
+          if [[ "${{ env.BRANCH_NAME }}" == "master" ]]; then
+            echo "name=b${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+          else
+            SAFE_NAME=$(echo "${{ env.BRANCH_NAME }}" | tr '/' '-')
+            echo "name=${SAFE_NAME}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Pack artifacts
+        id: pack_artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        run: |
+          cp LICENSE ./build/bin/
+          zip -r llama-${{ steps.tag.outputs.name }}-bin-ubuntu-x64.zip ./build/bin/*
+
+      - name: Upload artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-x64.zip
+          name: llama-bin-ubuntu-x64.zip

@@ -1,0 +1,54 @@
+[project]
+name = "llama-cpp-server-py-mono"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Fangyin Cheng", email = "staneyffer@gmail.com" }
+]
+dependencies = []
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+virtual = true
+dev-dependencies = []
+
+[tool.rye.workspace]
+members = ["llama-cpp-*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+
+[tool.rye.scripts]
+fmt = { chain = [
+    "black lyric-task",
+    "black lyric-py",
+    "black lyric-py-worker",
+    "isort lyric-task",
+    "isort lyric-py",
+    "isort lyric-py-worker",
+]}
+fmt-check = { chain = [
+    "black --check lyric-task",
+    "black --check lyric-py",
+    "isort --check lyric-task",
+    "isort --check lyric-py",
+]}
+# Sync version number across all packages
+# sync-version = "python scripts/sync_version.py"
