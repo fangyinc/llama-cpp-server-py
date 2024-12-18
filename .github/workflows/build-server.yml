@@ -102,35 +102,35 @@ jobs:
           name: llama-bin-ubuntu-${{ matrix.arch }}.zip
 
   ubuntu-latest-cmake-cuda:
-      runs-on: ubuntu-latest
-      strategy:
-        matrix:
-          arch: [amd64, arm64]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
 
-      steps:
-        - name: Set up QEMU
-          uses: docker/setup-qemu-action@v3
-          with:
-            platforms: linux/${{ matrix.arch }}
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/${{ matrix.arch }}
 
-        - name: Clone
-          uses: actions/checkout@v4
-          with:
-            submodules: "recursive"
-            ref: ${{ github.event.inputs.version || github.ref }}
-            fetch-depth: 0
-            fetch-tags: true
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          ref: ${{ github.event.inputs.version || github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
 
-        - name: Get UID/GID
-          id: ids
-          run: |
-            echo "uid=$(id -u)" >> $GITHUB_OUTPUT
-            echo "gid=$(id -g)" >> $GITHUB_OUTPUT
+      - name: Get UID/GID
+        id: ids
+        run: |
+          echo "uid=$(id -u)" >> $GITHUB_OUTPUT
+          echo "gid=$(id -g)" >> $GITHUB_OUTPUT
 
-        - name: Build with CUDA
-          run: |
-            chmod +x scripts/build.sh
-            docker run --rm \
+      - name: Build with CUDA
+        run: |
+          chmod +x scripts/build.sh
+          docker run --rm \
             --platform linux/${{ matrix.arch }} \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ github.workspace }}/scripts/build.sh:/build.sh \
@@ -138,28 +138,28 @@ jobs:
             nvidia/cuda:12.6.2-devel-ubuntu24.04 \
             /build.sh
 
-        - name: Determine tag name
-          id: tag
-          shell: bash
-          run: |
-            BUILD_NUMBER="$(git rev-list --count HEAD)"
-            SHORT_HASH="$(git rev-parse --short=7 HEAD)"
-            if [[ "${{ env.BRANCH_NAME }}" == "main" ]]; then
-              echo "name=b${BUILD_NUMBER}" >> $GITHUB_OUTPUT
-            else
-              SAFE_NAME=$(echo "${{ env.BRANCH_NAME }}" | tr '/' '-')
-              echo "name=${SAFE_NAME}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
-            fi
+      - name: Determine tag name
+        id: tag
+        shell: bash
+        run: |
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          SHORT_HASH="$(git rev-parse --short=7 HEAD)"
+          if [[ "${{ env.BRANCH_NAME }}" == "main" ]]; then
+            echo "name=b${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+          else
+            SAFE_NAME=$(echo "${{ env.BRANCH_NAME }}" | tr '/' '-')
+            echo "name=${SAFE_NAME}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
+          fi
 
-          - name: Pack artifacts
-            if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
-            run: |
-              cp LICENSE ./llama.cpp/build/bin/
-              zip -r llama-${{ steps.tag.outputs.name }}-bin-ubuntu-${{ matrix.arch }}-cuda.zip ./llama.cpp/build/bin/*
-    
-          - name: Upload artifacts
-            if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
-            uses: actions/upload-artifact@v4
-            with:
-              path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-${{ matrix.arch }}-cuda.zip
-              name: llama-bin-ubuntu-${{ matrix.arch }}-cuda.zip
+        - name: Pack artifacts
+          if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
+          run: |
+            cp LICENSE ./llama.cpp/build/bin/
+            zip -r llama-${{ steps.tag.outputs.name }}-bin-ubuntu-${{ matrix.arch }}-cuda.zip ./llama.cpp/build/bin/*
+
+        - name: Upload artifacts
+          if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
+          uses: actions/upload-artifact@v4
+          with:
+            path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-${{ matrix.arch }}-cuda.zip
+            name: llama-bin-ubuntu-${{ matrix.arch }}-cuda.zip
