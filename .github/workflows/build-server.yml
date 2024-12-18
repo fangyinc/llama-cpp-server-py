@@ -108,6 +108,13 @@ jobs:
     container: nvidia/cuda:12.6.2-devel-ubuntu24.04
 
     steps:
+      - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y cmake build-essential ninja-build libgomp1 git
+
       - name: Clone
         id: checkout
         uses: actions/checkout@v4
@@ -116,13 +123,6 @@ jobs:
           ref: ${{ github.event.inputs.version || github.ref }}
           fetch-depth: 0
           fetch-tags: true
-
-      - name: Install dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-            apt update
-            apt install -y cmake build-essential ninja-build libgomp1 git
 
       - name: Build with CMake
         run: |
