@@ -8,6 +8,11 @@ on:
         description: 'Version tag to build (e.g., v1.11.3)'
         required: false
         type: string
+      create_release:
+        description: 'Create release artifacts'
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -77,7 +82,7 @@ jobs:
         run: |
           BUILD_NUMBER="$(git rev-list --count HEAD)"
           SHORT_HASH="$(git rev-parse --short=7 HEAD)"
-          if [[ "${{ env.BRANCH_NAME }}" == "master" ]]; then
+          if [[ "${{ env.BRANCH_NAME }}" == "main" ]]; then
             echo "name=b${BUILD_NUMBER}" >> $GITHUB_OUTPUT
           else
             SAFE_NAME=$(echo "${{ env.BRANCH_NAME }}" | tr '/' '-')
@@ -86,13 +91,13 @@ jobs:
 
       - name: Pack artifacts
         id: pack_artifacts
-        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
         run: |
           cp LICENSE ./llama.cpp/build/bin/
           zip -r llama-${{ steps.tag.outputs.name }}-bin-ubuntu-x64.zip ./llama.cpp/build/bin/*
 
       - name: Upload artifacts
-        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-x64.zip
