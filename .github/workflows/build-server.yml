@@ -121,12 +121,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Get UID/GID
-        id: ids
-        run: |
-          echo "uid=$(id -u)" >> $GITHUB_OUTPUT
-          echo "gid=$(id -g)" >> $GITHUB_OUTPUT
-
       - name: Build with CUDA
         run: |
           chmod +x scripts/build.sh
@@ -134,7 +128,6 @@ jobs:
             --platform linux/${{ matrix.arch }} \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ github.workspace }}/scripts/build.sh:/build.sh \
-            --user ${{ steps.ids.outputs.uid }}:${{ steps.ids.outputs.gid }} \
             nvidia/cuda:12.6.2-devel-ubuntu24.04 \
             /build.sh
 

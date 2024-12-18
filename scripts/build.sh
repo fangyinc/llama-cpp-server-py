@@ -8,6 +8,7 @@ git config --global --add safe.directory /workspace
 
 # Build with CMake
 cd /workspace/llama.cpp
+mkdir -p build
 cmake -S . -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DGGML_NATIVE=OFF \
@@ -15,3 +16,6 @@ cmake -S . -B build -G Ninja \
     -DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined \
     -DLLAMA_FATAL_WARNINGS=ON
 cmake --build build -j $(nproc)
+
+# Set build directory permissions
+chmod -R 777 build
