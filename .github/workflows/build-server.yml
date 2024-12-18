@@ -131,12 +131,12 @@ jobs:
           run: |
             chmod +x scripts/build.sh
             docker run --rm \
-              --platform linux/${{ matrix.arch }} \
-              -v ${{ github.workspace }}:/workspace \
-              -v ${{ github.workspace }}/scripts/build.sh:/build.sh \
-              --user ${{ steps.ids.outputs.uid }}:${{ steps.ids.outputs.gid }} \
-              nvidia/cuda:12.6.2-devel-ubuntu24.04 \
-              /build.sh
+            --platform linux/${{ matrix.arch }} \
+            -v ${{ github.workspace }}:/workspace \
+            -v ${{ github.workspace }}/scripts/build.sh:/build.sh \
+            --user ${{ steps.ids.outputs.uid }}:${{ steps.ids.outputs.gid }} \
+            nvidia/cuda:12.6.2-devel-ubuntu24.04 \
+            /build.sh
 
         - name: Determine tag name
           id: tag
