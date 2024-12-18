@@ -10,7 +10,7 @@ on:
         type: string
   push:
     branches:
-      - master
+      - main
     paths: ['.github/workflows/build-server.yml', 'llama-cpp-server*/**']
   pull_request:
     paths: ['.github/workflows/build-server.yml', 'llama-cpp-server*/**']
@@ -48,6 +48,7 @@ jobs:
       - name: Build
         id: cmake_build
         run: |
+          cd llama.cpp
           mkdir build
           cd build
           cmake .. -DLLAMA_FATAL_WARNINGS=ON -DLLAMA_CURL=ON -DGGML_RPC=ON -DBUILD_SHARED_LIBS=OFF
@@ -56,13 +57,13 @@ jobs:
       - name: Test
         id: cmake_test
         run: |
-          cd build
+          cd llama.cpp/build
           ctest -L 'main|curl' --verbose --timeout 900
 
       - name: Test llama2c conversion
         id: llama2c_test
         run: |
-          cd build
+          cd llama.cpp/build
           echo "Fetch tokenizer"
           wget https://huggingface.co/karpathy/tinyllamas/resolve/main/stories260K/tok512.bin
           echo "Fetch llama2c model"
@@ -87,8 +88,8 @@ jobs:
         id: pack_artifacts
         if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
         run: |
-          cp LICENSE ./build/bin/
-          zip -r llama-${{ steps.tag.outputs.name }}-bin-ubuntu-x64.zip ./build/bin/*
+          cp LICENSE ./llama.cpp/build/bin/
+          zip -r llama-${{ steps.tag.outputs.name }}-bin-ubuntu-x64.zip ./llama.cpp/build/bin/*
 
       - name: Upload artifacts
         if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) || github.event.inputs.create_release == 'true' }}
