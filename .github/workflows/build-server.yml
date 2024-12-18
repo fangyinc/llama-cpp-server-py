@@ -151,15 +151,15 @@ jobs:
             echo "name=${SAFE_NAME}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
           fi
 
-        - name: Pack artifacts
-          if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
-          run: |
-            cp LICENSE ./llama.cpp/build/bin/
-            zip -r llama-${{ steps.tag.outputs.name }}-bin-ubuntu-${{ matrix.arch }}-cuda.zip ./llama.cpp/build/bin/*
+      - name: Pack artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
+        run: |
+          cp LICENSE ./llama.cpp/build/bin/
+          zip -r llama-${{ steps.tag.outputs.name }}-bin-ubuntu-${{ matrix.arch }}-cuda.zip ./llama.cpp/build/bin/*
 
-        - name: Upload artifacts
-          if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
-          uses: actions/upload-artifact@v4
-          with:
-            path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-${{ matrix.arch }}-cuda.zip
-            name: llama-bin-ubuntu-${{ matrix.arch }}-cuda.zip
+      - name: Upload artifacts
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-${{ matrix.arch }}-cuda.zip
+          name: llama-bin-ubuntu-${{ matrix.arch }}-cuda.zip
