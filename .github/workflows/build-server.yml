@@ -178,55 +178,23 @@ jobs:
     needs: [build-multi-linux, ubuntu-latest-cmake-cuda]
     if: |
       always() &&
-      needs.build-multi-linux.result == 'success' &&
-      (needs.ubuntu-latest-cmake-cuda.result == 'success' || needs.ubuntu-latest-cmake-cuda.result == 'skipped')
+      needs.build-multi-linux.result == 'success'
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         python-version: ["3.10.14", "3.11.8", "3.12.2"]
-        include:
-          # CPU version - AMD64
-          - package: llama-cpp-server-py
-            binary: llama-server-amd64
-            dir: llama_cpp_server_py
-            arch: x86_64
-            platform_tag: manylinux_2_31_x86_64
-          # CPU version - ARM64
-          - package: llama-cpp-server-py
-            binary: llama-server-arm64
-            dir: llama_cpp_server_py
-            arch: aarch64
-            platform_tag: manylinux_2_31_aarch64
-          # CUDA version - AMD64
-          - package: llama-cpp-server-py-cuda
-            binary: llama-server-cuda-amd64
-            dir: llama_cpp_server_py_cuda
-            arch: x86_64
-            platform_tag: manylinux_2_31_x86_64
-          # CUDA version - ARM64
-          - package: llama-cpp-server-py-cuda
-            binary: llama-server-cuda-arm64
-            dir: llama_cpp_server_py_cuda
-            arch: aarch64
-            platform_tag: manylinux_2_31_aarch64
-
+    
     steps:
-      - name: Check CUDA build status
-        id: check_build
+      - name: Check CUDA build
+        id: check_cuda
         run: |
-          if [[ "${{ matrix.package }}" == *"-cuda" && "${{ github.event.inputs.create_release }}" != "true" && "${{ github.event_name }}" != "release" ]]; then
-            echo "Skipping CUDA package build as this is not a release build"
-            exit 1
+          if [[ "${{ github.event.inputs.create_release }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
+            echo "build_cuda=true" >> $GITHUB_OUTPUT
+          else
+            echo "build_cuda=false" >> $GITHUB_OUTPUT
           fi
-        continue-on-error: true
-
-      - name: Skip if CUDA build not available
-        if: ${{ matrix.needs_cuda && steps.check_cuda.outputs.skip == 'true' }}
-        run: exit 0
 
       - name: Clone
-        if: steps.check_build.outcome == 'success'
         uses: actions/checkout@v4
         with:
           submodules: "recursive"
@@ -235,44 +203,104 @@ jobs:
           fetch-tags: true
 
       - uses: actions/setup-python@v5
-        if: steps.check_build.outcome == 'success'
         with:
           python-version: "3.10"
 
       - name: Install Rye
-        if: steps.check_build.outcome == 'success'
         uses: eifinger/setup-rye@v4
         with:
           enable-cache: true
           working-directory: ./
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download server binary
-        if: steps.check_build.outcome == 'success'
+      # Build CPU version
+      - name: Download CPU server binary (amd64)
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.binary }}
-          path: ${{ matrix.package }}/src/${{ matrix.dir }}/
+          name: llama-server-amd64
+          path: llama-cpp-server-py/src/llama_cpp_server_py/
 
-      - name: Setup Python version and build wheel
-        if: steps.check_build.outcome == 'success'
+      - name: Build CPU wheel (amd64)
         run: |
-          cd ${{ matrix.package }}
-          
-          # Set Python version
+          cd llama-cpp-server-py
           echo "${{ matrix.python-version }}" > .python-version
           rye pin "${{ matrix.python-version }}"
-          
-          # Sync dependencies
           rye sync --no-dev
-          
-          # Build wheel with platform tag
-          WHEEL_PLATFORM="${{ matrix.platform_tag }}" rye build
+          WHEEL_PLATFORM="manylinux_2_31_x86_64" rye build
+          cd ..
 
-      - name: Upload wheel artifacts
-        if: steps.check_build.outcome == 'success'
+      - name: Upload CPU wheel (amd64)
         uses: actions/upload-artifact@v4
         with:
-          name: dist-wheels-${{ matrix.package }}-${{ matrix.arch }}-py${{ matrix.python-version }}
-          path: |
-            ${{ matrix.package }}/dist/*.whl
+          name: dist-wheels-llama-cpp-server-py-x86_64-py${{ matrix.python-version }}
+          path: dist/*.whl
+
+      - name: Download CPU server binary (arm64)
+        uses: actions/download-artifact@v4
+        with:
+          name: llama-server-arm64
+          path: llama-cpp-server-py/src/llama_cpp_server_py/
+
+      - name: Build CPU wheel (arm64)
+        run: |
+          cd llama-cpp-server-py
+          echo "${{ matrix.python-version }}" > .python-version
+          rye pin "${{ matrix.python-version }}"
+          rye sync --no-dev
+          WHEEL_PLATFORM="manylinux_2_31_aarch64" rye build
+          cd ..
+
+      - name: Upload CPU wheel (arm64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-wheels-llama-cpp-server-py-aarch64-py${{ matrix.python-version }}
+          path: dist/*.whl
+
+      # Build CUDA version if needed
+      - name: Download CUDA server binary (amd64)
+        if: steps.check_cuda.outputs.build_cuda == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: llama-server-cuda-amd64
+          path: llama-cpp-server-py-cuda/src/llama_cpp_server_py_cuda/
+
+      - name: Build CUDA wheel (amd64)
+        if: steps.check_cuda.outputs.build_cuda == 'true'
+        run: |
+          cd llama-cpp-server-py-cuda
+          echo "${{ matrix.python-version }}" > .python-version
+          rye pin "${{ matrix.python-version }}"
+          rye sync --no-dev
+          WHEEL_PLATFORM="manylinux_2_31_x86_64" rye build
+          cd ..
+
+      - name: Upload CUDA wheel (amd64)
+        if: steps.check_cuda.outputs.build_cuda == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-wheels-llama-cpp-server-py-cuda-x86_64-py${{ matrix.python-version }}
+          path: dist/*.whl
+
+      - name: Download CUDA server binary (arm64)
+        if: steps.check_cuda.outputs.build_cuda == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: llama-server-cuda-arm64
+          path: llama-cpp-server-py-cuda/src/llama_cpp_server_py_cuda/
+
+      - name: Build CUDA wheel (arm64)
+        if: steps.check_cuda.outputs.build_cuda == 'true'
+        run: |
+          cd llama-cpp-server-py-cuda
+          echo "${{ matrix.python-version }}" > .python-version
+          rye pin "${{ matrix.python-version }}"
+          rye sync --no-dev
+          WHEEL_PLATFORM="manylinux_2_31_aarch64" rye build
+          cd ..
+
+      - name: Upload CUDA wheel (arm64)
+        if: steps.check_cuda.outputs.build_cuda == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-wheels-llama-cpp-server-py-cuda-aarch64-py${{ matrix.python-version }}
+          path: dist/*.whl
