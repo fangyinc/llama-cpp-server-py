@@ -15,7 +15,7 @@ cmake -S . -B build -G Ninja \
     -DGGML_CUDA=ON \
     -DGGML_STATIC=ON \
     -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined \
+    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--allow-shlib-undefined -static-libgcc -static-libstdc++" \
     -DLLAMA_FATAL_WARNINGS=ON
 cmake --build build -j $(nproc)
 
