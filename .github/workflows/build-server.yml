@@ -64,14 +64,25 @@ jobs:
           cat > build.sh << 'EOF'
           #!/bin/bash
           set -e
-          apt-get update
-          apt-get install -y build-essential libcurl4-openssl-dev cmake git
+          # Install dependencies
+          yum install -y cmake3 devtoolset-10-gcc devtoolset-10-gcc-c++ openssl-devel
+          source /opt/rh/devtoolset-10/enable
+          
           cd /workspace/llama.cpp
           mkdir build
           cd build
-          cmake .. -DLLAMA_FATAL_WARNINGS=ON -DLLAMA_CURL=OFF -DGGML_RPC=OFF -DGGML_STATIC=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++"
-          cmake --build . --config Release -j $(nproc)
-          # Set build directory permissions
+          cmake3 .. \
+            -DLLAMA_FATAL_WARNINGS=ON \
+            -DLLAMA_CURL=OFF \
+            -DGGML_RPC=OFF \
+            -DGGML_STATIC=ON \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_C_FLAGS="-static" \
+            -DCMAKE_CXX_FLAGS="-static" \
+            -DCMAKE_EXE_LINKER_FLAGS="-static" \
+            -DCMAKE_BUILD_TYPE=Release
+            
+          cmake3 --build . --config Release -j $(nproc)
           cd ../
           chmod -R 777 build
           EOF
@@ -81,7 +92,7 @@ jobs:
             --platform linux/${{ matrix.arch }} \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ github.workspace }}/build.sh:/build.sh \
-            ubuntu:latest \
+            quay.io/pypa/manylinux2014_${{ matrix.platform }} \
             /build.sh
 
       - name: Test
@@ -89,9 +100,9 @@ jobs:
           docker run --rm \
             --platform linux/${{ matrix.arch }} \
             -v ${{ github.workspace }}:/workspace \
-            ubuntu:latest \
-            bash -c "apt-get update && apt-get install -y libcurl4-openssl-dev libgomp1 curl && /workspace/llama.cpp/build/bin/llama-server --version"
-
+            quay.io/pypa/manylinux2014_${{ matrix.platform }} \
+            bash -c "yum install -y libcurl-devel libgomp curl && /workspace/llama.cpp/build/bin/llama-server --version"
+            
       - name: Determine tag name
         id: tag
         shell: bash
