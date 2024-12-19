@@ -178,7 +178,7 @@ jobs:
     needs: [build-multi-linux, ubuntu-latest-cmake-cuda]
     if: |
       always() &&
-      (needs.build-multi-linux.result == 'success') &&
+      needs.build-multi-linux.result == 'success' &&
       (needs.ubuntu-latest-cmake-cuda.result == 'success' || needs.ubuntu-latest-cmake-cuda.result == 'skipped')
     runs-on: ubuntu-latest
     strategy:
@@ -186,48 +186,47 @@ jobs:
       matrix:
         python-version: ["3.10.14", "3.11.8", "3.12.2"]
         include:
-          # CPU 版本 - AMD64
+          # CPU version - AMD64
           - package: llama-cpp-server-py
             binary: llama-server-amd64
             dir: llama_cpp_server_py
             arch: x86_64
             platform_tag: manylinux_2_31_x86_64
-          # CPU 版本 - ARM64
+          # CPU version - ARM64
           - package: llama-cpp-server-py
             binary: llama-server-arm64
             dir: llama_cpp_server_py
             arch: aarch64
             platform_tag: manylinux_2_31_aarch64
-          # CUDA 版本 - AMD64
+          # CUDA version - AMD64
           - package: llama-cpp-server-py-cuda
             binary: llama-server-cuda-amd64
             dir: llama_cpp_server_py_cuda
             arch: x86_64
             platform_tag: manylinux_2_31_x86_64
-            needs_cuda: true
-          # CUDA 版本 - ARM64
+          # CUDA version - ARM64
           - package: llama-cpp-server-py-cuda
             binary: llama-server-cuda-arm64
             dir: llama_cpp_server_py_cuda
             arch: aarch64
             platform_tag: manylinux_2_31_aarch64
-            needs_cuda: true
 
     steps:
       - name: Check CUDA build status
-        id: check_cuda
-        if: ${{ matrix.needs_cuda }}
+        id: check_build
         run: |
-          if [[ "${{ github.event.inputs.create_release }}" != "true" && "${{ github.event_name }}" != "release" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
+          if [[ "${{ matrix.package }}" == *"-cuda" && "${{ github.event.inputs.create_release }}" != "true" && "${{ github.event_name }}" != "release" ]]; then
+            echo "Skipping CUDA package build as this is not a release build"
+            exit 1
           fi
+        continue-on-error: true
+
       - name: Skip if CUDA build not available
         if: ${{ matrix.needs_cuda && steps.check_cuda.outputs.skip == 'true' }}
         run: exit 0
 
       - name: Clone
+        if: steps.check_build.outcome == 'success'
         uses: actions/checkout@v4
         with:
           submodules: "recursive"
@@ -236,10 +235,12 @@ jobs:
           fetch-tags: true
 
       - uses: actions/setup-python@v5
+        if: steps.check_build.outcome == 'success'
         with:
           python-version: "3.10"
 
       - name: Install Rye
+        if: steps.check_build.outcome == 'success'
         uses: eifinger/setup-rye@v4
         with:
           enable-cache: true
@@ -247,32 +248,31 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download server binary
+        if: steps.check_build.outcome == 'success'
         uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.binary }}
           path: ${{ matrix.package }}/src/${{ matrix.dir }}/
 
       - name: Setup Python version and build wheel
+        if: steps.check_build.outcome == 'success'
         run: |
-          for pkg in ${{ matrix.package }}; do
-            cd $pkg
-            
-            # Set Python version
-            echo "${{ matrix.python-version }}" > .python-version
-            rye pin "${{ matrix.python-version }}"
-            
-            # Sync dependencies
-            rye sync --no-dev
-            
-            # Build wheel with platform tag
-            WHEEL_PLATFORM="${{ matrix.platform_tag }}" rye build
-            
-            cd ..
-          done
+          cd ${{ matrix.package }}
+          
+          # Set Python version
+          echo "${{ matrix.python-version }}" > .python-version
+          rye pin "${{ matrix.python-version }}"
+          
+          # Sync dependencies
+          rye sync --no-dev
+          
+          # Build wheel with platform tag
+          WHEEL_PLATFORM="${{ matrix.platform_tag }}" rye build
 
       - name: Upload wheel artifacts
+        if: steps.check_build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: dist-wheels-${{ matrix.package }}-${{ matrix.arch }}-py${{ matrix.python-version }}
           path: |
-            dist/*.whl
+            ${{ matrix.package }}/dist/*.whl
