@@ -87,7 +87,7 @@ jobs:
             --platform linux/${{ matrix.arch }} \
             -v ${{ github.workspace }}:/workspace \
             ubuntu:latest \
-            /workspace/llama.cpp/build/bin/llama-server --version
+            bash -c "apt-get update && apt-get install -y libcurl4-openssl-dev libgomp1 curl && /workspace/llama.cpp/build/bin/llama-server --version"
 
       - name: Determine tag name
         id: tag
