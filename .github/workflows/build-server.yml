@@ -19,6 +19,8 @@ on:
     paths: ['.github/workflows/build-server.yml', 'llama-cpp-server*/**']
   pull_request:
     paths: ['.github/workflows/build-server.yml', 'llama-cpp-server*/**']
+  release:
+    types: [published]
 
 env:
   LLAMA_LOG_COLORS: 1
@@ -101,8 +103,16 @@ jobs:
           path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-${{ matrix.arch }}.zip
           name: llama-bin-ubuntu-${{ matrix.arch }}.zip
 
+      - name: Upload server binary
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          path: llama.cpp/build/bin/llama-server
+          name: llama-server-${{ matrix.arch }}
+
   ubuntu-latest-cmake-cuda:
     runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.create_release == 'true' || github.event_name == 'release' }}
     strategy:
       matrix:
         arch: [amd64, arm64]
@@ -156,3 +166,113 @@ jobs:
         with:
           path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-${{ matrix.arch }}-cuda.zip
           name: llama-bin-ubuntu-${{ matrix.arch }}-cuda.zip
+
+      - name: Upload server binary
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          path: llama.cpp/build/bin/llama-server
+          name: llama-server-cuda-${{ matrix.arch }}
+
+  build-wheels:
+    needs: [build-multi-linux, ubuntu-latest-cmake-cuda]
+    if: |
+      always() &&
+      (needs.build-multi-linux.result == 'success') &&
+      (needs.ubuntu-latest-cmake-cuda.result == 'success' || needs.ubuntu-latest-cmake-cuda.result == 'skipped')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10.14", "3.11.8", "3.12.2"]
+        include:
+          # CPU 版本 - AMD64
+          - package: llama-cpp-server-py
+            binary: llama-server-amd64
+            dir: llama_cpp_server_py
+            arch: x86_64
+            platform_tag: manylinux_2_31_x86_64
+          # CPU 版本 - ARM64
+          - package: llama-cpp-server-py
+            binary: llama-server-arm64
+            dir: llama_cpp_server_py
+            arch: aarch64
+            platform_tag: manylinux_2_31_aarch64
+          # CUDA 版本 - AMD64
+          - package: llama-cpp-server-py-cuda
+            binary: llama-server-cuda-amd64
+            dir: llama_cpp_server_py_cuda
+            arch: x86_64
+            platform_tag: manylinux_2_31_x86_64
+            needs_cuda: true
+          # CUDA 版本 - ARM64
+          - package: llama-cpp-server-py-cuda
+            binary: llama-server-cuda-arm64
+            dir: llama_cpp_server_py_cuda
+            arch: aarch64
+            platform_tag: manylinux_2_31_aarch64
+            needs_cuda: true
+
+    steps:
+      - name: Check CUDA build status
+        id: check_cuda
+        if: ${{ matrix.needs_cuda }}
+        run: |
+          if [[ "${{ github.event.inputs.create_release }}" != "true" && "${{ github.event_name }}" != "release" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Skip if CUDA build not available
+        if: ${{ matrix.needs_cuda && steps.check_cuda.outputs.skip == 'true' }}
+        run: exit 0
+
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          ref: ${{ github.event.inputs.version || github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Rye
+        uses: eifinger/setup-rye@v4
+        with:
+          enable-cache: true
+          working-directory: ./
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download server binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.binary }}
+          path: ${{ matrix.package }}/src/${{ matrix.dir }}/
+
+      - name: Setup Python version and build wheel
+        run: |
+          for pkg in ${{ matrix.package }}; do
+            cd $pkg
+            
+            # Set Python version
+            echo "${{ matrix.python-version }}" > .python-version
+            rye pin "${{ matrix.python-version }}"
+            
+            # Sync dependencies
+            rye sync --no-dev
+            
+            # Build wheel with platform tag
+            WHEEL_PLATFORM="${{ matrix.platform_tag }}" rye build
+            
+            cd ..
+          done
+
+      - name: Upload wheel artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-wheels-${{ matrix.package }}-${{ matrix.arch }}-py${{ matrix.python-version }}
+          path: |
+            dist/*.whl
