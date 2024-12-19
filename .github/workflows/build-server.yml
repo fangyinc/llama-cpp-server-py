@@ -71,6 +71,8 @@ jobs:
           cd build
           cmake .. -DLLAMA_FATAL_WARNINGS=ON -DLLAMA_CURL=OFF -DGGML_RPC=ON -DBUILD_SHARED_LIBS=OFF
           cmake --build . --config Release -j $(nproc)
+          # Set build directory permissions
+          chmod -R 777 build
           EOF
           chmod +x build.sh
           
