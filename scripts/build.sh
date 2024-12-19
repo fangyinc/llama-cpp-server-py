@@ -13,6 +13,8 @@ cmake -S . -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DGGML_NATIVE=OFF \
     -DGGML_CUDA=ON \
+    -DGGML_STATIC=ON \
+    -DBUILD_SHARED_LIBS=OFF \
     -DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined \
     -DLLAMA_FATAL_WARNINGS=ON
 cmake --build build -j $(nproc)
