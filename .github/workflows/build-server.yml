@@ -62,27 +62,28 @@ jobs:
       - name: Build
         run: |
           cat > build.sh << 'EOF'
-          #!/bin/bash
+          #!/bin/sh
           set -e
-          # Install LLVM toolchain and dependencies
-          apt-get update
-          apt-get install -y cmake clang lld libc++-dev libc++abi-dev
+          # Install build dependencies
+          apk add --no-cache build-base cmake git openssl-dev curl-dev samurai
 
           cd /workspace/llama.cpp
           mkdir build
           cd build
+          # 使用 gcc/g++ 而不是 clang
           cmake .. \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld -static-libgcc -static-libstdc++" \
-            -DLLAMA_FATAL_WARNINGS=ON \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DLLAMA_FATAL_WARNINGS=OFF \
             -DLLAMA_CURL=OFF \
             -DGGML_RPC=OFF \
             -DGGML_STATIC=ON \
             -DBUILD_SHARED_LIBS=OFF \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -GNinja
             
-          cmake --build . --config Release -j $(nproc)
+          ninja
+          strip bin/llama-server  # Reduce binary size
           cd ../
           chmod -R 777 build
           EOF
@@ -92,18 +93,17 @@ jobs:
             --platform linux/${{ matrix.arch }} \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ github.workspace }}/build.sh:/build.sh \
-            debian:stable-slim \
+            alpine:latest \
             /build.sh
-
 
       - name: Test
         run: |
           docker run --rm \
             --platform linux/${{ matrix.arch }} \
             -v ${{ github.workspace }}:/workspace \
-            quay.io/pypa/manylinux2014_${{ matrix.platform }} \
-            bash -c "yum install -y libcurl-devel libgomp curl && /workspace/llama.cpp/build/bin/llama-server --version"
-            
+            alpine:latest \
+            /workspace/llama.cpp/build/bin/llama-server --version
+
       - name: Determine tag name
         id: tag
         shell: bash
