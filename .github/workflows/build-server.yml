@@ -64,25 +64,25 @@ jobs:
           cat > build.sh << 'EOF'
           #!/bin/bash
           set -e
-          # Install dependencies
-          yum install -y cmake3 devtoolset-10-gcc devtoolset-10-gcc-c++ openssl-devel
-          source /opt/rh/devtoolset-10/enable
-          
+          # Install LLVM toolchain and dependencies
+          apt-get update
+          apt-get install -y cmake clang lld libc++-dev libc++abi-dev
+
           cd /workspace/llama.cpp
           mkdir build
           cd build
-          cmake3 .. \
+          cmake .. \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld -static-libgcc -static-libstdc++" \
             -DLLAMA_FATAL_WARNINGS=ON \
             -DLLAMA_CURL=OFF \
             -DGGML_RPC=OFF \
             -DGGML_STATIC=ON \
             -DBUILD_SHARED_LIBS=OFF \
-            -DCMAKE_C_FLAGS="-static" \
-            -DCMAKE_CXX_FLAGS="-static" \
-            -DCMAKE_EXE_LINKER_FLAGS="-static" \
             -DCMAKE_BUILD_TYPE=Release
             
-          cmake3 --build . --config Release -j $(nproc)
+          cmake --build . --config Release -j $(nproc)
           cd ../
           chmod -R 777 build
           EOF
@@ -92,8 +92,9 @@ jobs:
             --platform linux/${{ matrix.arch }} \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ github.workspace }}/build.sh:/build.sh \
-            quay.io/pypa/manylinux2014_${{ matrix.platform }} \
+            debian:stable-slim \
             /build.sh
+
 
       - name: Test
         run: |
