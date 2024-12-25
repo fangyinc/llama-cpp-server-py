@@ -1,19 +1,20 @@
 import io
-import queue
-import subprocess
-import os
 import json
-import requests
-import time
 import logging
+import os
+import queue
+import socket
+import subprocess
 import threading
+import time
 from dataclasses import dataclass, field
-from typing import Any, Iterator, List, Set, Optional
-from queue import Queue
 from enum import Enum
+from queue import Queue
+from typing import Any, Iterator, List, Optional, Set
+
+import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import socket
 
 logger = logging.getLogger(__name__)
 

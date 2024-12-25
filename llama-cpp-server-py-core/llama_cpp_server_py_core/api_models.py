@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import dataclasses
 import time
-from typing import List, Optional, Dict, Union, Any, Literal
 from enum import Enum
+from typing import Any, Dict, List, Literal, Optional, Union
 
 
 @dataclasses.dataclass

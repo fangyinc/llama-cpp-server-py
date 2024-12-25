@@ -16,7 +16,15 @@ build-backend = "hatchling.build"
 [tool.rye]
 managed = true
 virtual = true
-dev-dependencies = []
+dev-dependencies = [
+    "pip",
+    "tomli>=2.0.2",
+    "tomli-w>=1.1.0",
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "isort>=5.0.0",
+    "twine",
+]
 
 [tool.rye.workspace]
 members = ["llama-cpp-*"]
@@ -37,18 +45,16 @@ ensure_newline_before_comments = true
 
 [tool.rye.scripts]
 fmt = { chain = [
-    "black lyric-task",
-    "black lyric-py",
-    "black lyric-py-worker",
-    "isort lyric-task",
-    "isort lyric-py",
-    "isort lyric-py-worker",
+    "black llama-cpp-server-py",
+    "black llama-cpp-server-py-core",
+    "isort llama-cpp-server-py",
+    "isort llama-cpp-server-py-core",
 ]}
 fmt-check = { chain = [
-    "black --check lyric-task",
-    "black --check lyric-py",
-    "isort --check lyric-task",
-    "isort --check lyric-py",
+    "black --check llama-cpp-server-py",
+    "black --check llama-cpp-server-py-core",
+    "isort --check llama-cpp-server-py",
+    "isort --check llama-cpp-server-py-core",
 ]}
 # Sync version number across all packages
-# sync-version = "python scripts/sync_version.py"
+sync-version = "python scripts/sync_version.py"
