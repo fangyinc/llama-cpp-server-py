@@ -10,3 +10,5 @@
 #   universal: false
 
 -e file:llama-cpp-server-py
+-e file:llama-cpp-server-py-core
+-e file:llama-cpp-server-py-cuda
