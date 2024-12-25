@@ -89,11 +89,13 @@ jobs:
           rye sync --no-dev
 
           # Set build environment variables
-          export CMAKE_ARGS="-DLLAMA_FATAL_WARNINGS=OFF -DCMAKE_BUILD_TYPE=Release"
+          export CC=gcc
+          export CXX=g++
+          export CMAKE_ARGS="-DLLAMA_FATAL_WARNINGS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++"
           if [ "$BUILD_CUDA" = "true" ]; then
             export CMAKE_ARGS="$CMAKE_ARGS -DLLAMA_CUDA=ON"
-            export SKBUILD_CMAKE_ARGS="$CMAKE_ARGS"
           fi
+          export SKBUILD_CMAKE_ARGS="$CMAKE_ARGS"
 
           # Build wheel
           WHEEL_PLATFORM="${PLATFORM}" rye build --verbose
