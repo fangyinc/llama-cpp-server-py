@@ -31,168 +31,161 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-  jobs:
-    build-wheels:
-      runs-on: ubuntu-latest
-      strategy:
-        matrix:
-          python-version: ["3.10.14", "3.11.8", "3.12.2"]
-          arch: [amd64, arm64]
-          include:
-            # CPU builds for all configurations
-            - cuda: false
-            # CUDA builds only for release
-            - cuda: true
-              build_type: release
-          exclude:
-            - cuda: true
-              build_type: ${{ github.event.inputs.create_release != 'true' && github.event_name != 'release' && 'not_release' || 'release' }}
-  
-      steps:
-        - name: Clone
-          uses: actions/checkout@v4
-          with:
-            submodules: "recursive"
-            ref: ${{ github.event.inputs.version || github.ref }}
-            fetch-depth: 0
-            fetch-tags: true
-  
-        - name: Set up QEMU
-          uses: docker/setup-qemu-action@v3
-          with:
-            platforms: ${{ matrix.arch }}
-  
-        - name: Create build script
-          run: |
-            cat > build.sh << 'EOF'
-            #!/bin/bash
-            set -e
-  
-            # Install system dependencies
-            apt-get update && apt-get install -y \
-              software-properties-common \
-              wget \
-              gnupg \
-              apt-transport-https \
-              ca-certificates
-  
-            # Add newer CMake repository
-            wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
-            apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
-            
-            # Add newer GCC repository
-            add-apt-repository ppa:ubuntu-toolchain-r/test
-  
-            # Install updated packages
-            apt-get update && apt-get install -y \
-              build-essential \
-              cmake \
-              git \
-              curl \
-              python3-dev \
-              python3-pip \
-              ninja-build \
-              gcc-9 \
-              g++-9 \
-              pkg-config
-  
-            # Set gcc-9 as default
-            update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 \
-                              --slave /usr/bin/g++ g++ /usr/bin/g++-9
-            update-alternatives --set gcc /usr/bin/gcc-9
-  
-            # Install Rye for non-interactive environments
-            export RYE_NO_AUTO_INSTALL=1
-            export RYE_INSTALL_OPTION="--yes"
-            curl -sSf https://rye.astral.sh/get | bash
-            # Add Rye to PATH directly since we can't use interactive shell features
-            export PATH="/root/.rye/shims:${PATH}"
-            # Make sure rye is in path for subsequent commands in same shell
-            eval "$(rye self --no-auto-install shell-setup -s bash)"
-            
-            # Verify installation
-            rye --version
-  
-            # Configure project
-            cd /workspace/llama-cpp-server-py-core
-            echo "$PYTHON_VERSION" > .python-version
-            rye pin "$PYTHON_VERSION"
-            
-            # Set build environment variables
-            export CC=/opt/rh/devtoolset-9/root/usr/bin/gcc
-            export CXX=/opt/rh/devtoolset-9/root/usr/bin/g++
-            export CMAKE_ARGS="-DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DLLAMA_FATAL_WARNINGS=OFF -DCMAKE_BUILD_TYPE=Release"
-            if [ "$BUILD_CUDA" = "true" ]; then
-              export CMAKE_ARGS="$CMAKE_ARGS -DLLAMA_CUDA=ON"
-            fi
-            export SKBUILD_CMAKE_ARGS="$CMAKE_ARGS"
-            
-            # Install dependencies and build
-            rye sync --no-dev
-            WHEEL_PLATFORM="${PLATFORM}" rye build --verbose
-  
-            # Fix permissions
-            chmod -R 777 /workspace/dist
-            EOF
-            chmod +x build.sh
-  
-        - name: Build wheel
-          run: |
-            DOCKER_IMAGE=${{ matrix.cuda && 'nvidia/cuda:12.6.2-devel-ubuntu24.04' || 'ubuntu:24.04' }}
-            PLATFORM=${{ matrix.arch == 'amd64' && 'manylinux_2_31_x86_64' || 'manylinux_2_31_aarch64' }}
-            
-            docker run --rm -t \
-              --platform linux/${{ matrix.arch }} \
-              -v ${{ github.workspace }}:/workspace \
-              -v ${{ github.workspace }}/build.sh:/build.sh \
-              -e PYTHON_VERSION=${{ matrix.python-version }} \
-              -e BUILD_CUDA=${{ matrix.cuda }} \
-              -e PLATFORM=${PLATFORM} \
-              ${DOCKER_IMAGE} \
-              /build.sh
-  
-        - name: Upload wheel
-          uses: actions/upload-artifact@v4
-          with:
-            name: dist-wheels-py${{ matrix.python-version }}-${{ matrix.arch }}${{ matrix.cuda && '-cuda' || '' }}
-            path: dist/*.whl
-  
-        - name: Upload server binary
-          if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
-          uses: actions/upload-artifact@v4
-          with:
-            path: llama-cpp-server-py-core/build/temp.*/llama-cpp/build/bin/llama-server
-            name: llama-server${{ matrix.cuda && '-cuda' || '' }}-${{ matrix.arch }}
-  
-    create-release:
-      needs: build-wheels
-      if: ${{ github.event.inputs.create_release == 'true' || github.event_name == 'release' }}
-      runs-on: ubuntu-latest
-      
-      steps:
-        - name: Determine tag name
-          id: tag
-          shell: bash
-          run: |
-            BUILD_NUMBER="$(git rev-list --count HEAD)"
-            SHORT_HASH="$(git rev-parse --short=7 HEAD)"
-            if [[ "${{ env.BRANCH_NAME }}" == "main" ]]; then
-              echo "name=b${BUILD_NUMBER}" >> $GITHUB_OUTPUT
-            else
-              SAFE_NAME=$(echo "${{ env.BRANCH_NAME }}" | tr '/' '-')
-              echo "name=${SAFE_NAME}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
-            fi
-  
-        - name: Download all artifacts
-          uses: actions/download-artifact@v4
-          with:
-            path: artifacts
-  
-        - name: Create release
-          if: ${{ github.event.inputs.create_release == 'true' }}
-          uses: softprops/action-gh-release@v1
-          with:
-            tag_name: ${{ steps.tag.outputs.name }}
-            files: artifacts/**/*
-            draft: true
-            prerelease: true
+jobs:
+  build-wheels:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # python-version: ["3.10.14", "3.11.8", "3.12.2"]
+        python-version: ["3.10.14"]
+        # arch: [amd64, arm64]
+        arch: [amd64]
+        cuda: [false]
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          ref: ${{ github.event.inputs.version || github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: ${{ matrix.arch }}
+
+      - name: Create build script
+        run: |
+          cat > build.sh << 'EOF'
+          #!/bin/bash
+          set -e
+
+          # Install system dependencies
+          apt-get update && apt-get install -y \
+            software-properties-common \
+            wget \
+            gnupg \
+            apt-transport-https \
+            ca-certificates
+
+          # Add newer CMake repository
+          wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
+          apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
+          
+          # Add newer GCC repository
+          add-apt-repository ppa:ubuntu-toolchain-r/test
+
+          # Install updated packages
+          apt-get update && apt-get install -y \
+            build-essential \
+            cmake \
+            git \
+            curl \
+            python3-dev \
+            python3-pip \
+            ninja-build \
+            gcc-9 \
+            g++-9 \
+            pkg-config
+
+          # Set gcc-9 as default
+          update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 \
+                            --slave /usr/bin/g++ g++ /usr/bin/g++-9
+          update-alternatives --set gcc /usr/bin/gcc-9
+
+          # Install Rye for non-interactive environments
+          export RYE_NO_AUTO_INSTALL=1
+          export RYE_INSTALL_OPTION="--yes"
+          curl -sSf https://rye.astral.sh/get | bash
+          # Add Rye to PATH directly since we can't use interactive shell features
+          export PATH="/root/.rye/shims:${PATH}"
+          # Make sure rye is in path for subsequent commands in same shell
+          eval "$(rye self --no-auto-install shell-setup -s bash)"
+          
+          # Verify installation
+          rye --version
+
+          # Configure project
+          cd /workspace/llama-cpp-server-py-core
+          echo "$PYTHON_VERSION" > .python-version
+          rye pin "$PYTHON_VERSION"
+          
+          # Set build environment variables
+          export CC=/opt/rh/devtoolset-9/root/usr/bin/gcc
+          export CXX=/opt/rh/devtoolset-9/root/usr/bin/g++
+          export CMAKE_ARGS="-DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DLLAMA_FATAL_WARNINGS=OFF -DCMAKE_BUILD_TYPE=Release"
+          if [ "$BUILD_CUDA" = "true" ]; then
+            export CMAKE_ARGS="$CMAKE_ARGS -DLLAMA_CUDA=ON"
+          fi
+          export SKBUILD_CMAKE_ARGS="$CMAKE_ARGS"
+          
+          # Install dependencies and build
+          rye sync --no-dev
+          WHEEL_PLATFORM="${PLATFORM}" rye build --verbose
+
+          # Fix permissions
+          chmod -R 777 /workspace/dist
+          EOF
+          chmod +x build.sh
+
+      - name: Build wheel
+        run: |
+          DOCKER_IMAGE=${{ matrix.cuda && 'nvidia/cuda:12.6.2-devel-ubuntu24.04' || 'ubuntu:24.04' }}
+          PLATFORM=${{ matrix.arch == 'amd64' && 'manylinux_2_31_x86_64' || 'manylinux_2_31_aarch64' }}
+          
+          docker run --rm -t \
+            --platform linux/${{ matrix.arch }} \
+            -v ${{ github.workspace }}:/workspace \
+            -v ${{ github.workspace }}/build.sh:/build.sh \
+            -e PYTHON_VERSION=${{ matrix.python-version }} \
+            -e BUILD_CUDA=${{ matrix.cuda }} \
+            -e PLATFORM=${PLATFORM} \
+            ${DOCKER_IMAGE} \
+            /build.sh
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-wheels-py${{ matrix.python-version }}-${{ matrix.arch }}${{ matrix.cuda && '-cuda' || '' }}
+          path: dist/*.whl
+
+      - name: Upload server binary
+        if: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          path: llama-cpp-server-py-core/build/temp.*/llama-cpp/build/bin/llama-server
+          name: llama-server${{ matrix.cuda && '-cuda' || '' }}-${{ matrix.arch }}
+
+  create-release:
+    needs: build-wheels
+    if: ${{ github.event.inputs.create_release == 'true' || github.event_name == 'release' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Determine tag name
+        id: tag
+        shell: bash
+        run: |
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          SHORT_HASH="$(git rev-parse --short=7 HEAD)"
+          if [[ "${{ env.BRANCH_NAME }}" == "main" ]]; then
+            echo "name=b${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+          else
+            SAFE_NAME=$(echo "${{ env.BRANCH_NAME }}" | tr '/' '-')
+            echo "name=${SAFE_NAME}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        if: ${{ github.event.inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          files: artifacts/**/*
+          draft: true
+          prerelease: true
