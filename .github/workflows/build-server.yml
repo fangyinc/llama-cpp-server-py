@@ -90,15 +90,6 @@ jobs:
           echo "$PYTHON_VERSION" > .python-version
           rye pin "$PYTHON_VERSION"
           
-          # Create CMake cache file
-          mkdir -p build
-          cat > build/CMakeCache.txt << 'CMAKE_EOF'
-          CMAKE_C_COMPILER:FILEPATH=/usr/bin/gcc
-          CMAKE_CXX_COMPILER:FILEPATH=/usr/bin/g++
-          CMAKE_BUILD_TYPE:STRING=Release
-          LLAMA_FATAL_WARNINGS:BOOL=OFF
-          CMAKE_EOF
-          
           # Set build environment variables
           export CC=/usr/bin/gcc
           export CXX=/usr/bin/g++
@@ -107,6 +98,15 @@ jobs:
             export CMAKE_ARGS="$CMAKE_ARGS -DLLAMA_CUDA=ON"
           fi
           export SKBUILD_CMAKE_ARGS="$CMAKE_ARGS"
+          
+          # Install dependencies and build
+          rye sync --no-dev
+          WHEEL_PLATFORM="${PLATFORM}" rye build --verbose
+
+          # Fix permissions
+          chmod -R 777 /workspace/dist
+          EOF
+          chmod +x build.sh
 
       - name: Build wheel
         run: |
