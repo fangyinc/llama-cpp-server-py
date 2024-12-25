@@ -60,7 +60,8 @@ jobs:
           echo "${{ matrix.python-version }}" > .python-version
           rye pin "${{ matrix.python-version }}"
           rye sync --no-dev
-          rye build --sdist
+          cd llama-cpp-server-py-core && rye build --sdist && cd ..
+          cd llama-cpp-server-py && rye build --sdist && cd ..
 
       - name: Upload sdist artifacts
         uses: actions/upload-artifact@v4
