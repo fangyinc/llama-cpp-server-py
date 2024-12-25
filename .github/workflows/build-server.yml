@@ -68,7 +68,10 @@ jobs:
             curl \
             python3-dev \
             python3-pip \
-            ninja-build
+            ninja-build \
+            gcc \
+            g++ \
+            pkg-config
 
           # Install Rye for non-interactive environments
           export RYE_NO_AUTO_INSTALL=1
@@ -86,24 +89,24 @@ jobs:
           cd /workspace/llama-cpp-server-py-core
           echo "$PYTHON_VERSION" > .python-version
           rye pin "$PYTHON_VERSION"
-          rye sync --no-dev
-
+          
+          # Create CMake cache file
+          mkdir -p build
+          cat > build/CMakeCache.txt << 'CMAKE_EOF'
+          CMAKE_C_COMPILER:FILEPATH=/usr/bin/gcc
+          CMAKE_CXX_COMPILER:FILEPATH=/usr/bin/g++
+          CMAKE_BUILD_TYPE:STRING=Release
+          LLAMA_FATAL_WARNINGS:BOOL=OFF
+          CMAKE_EOF
+          
           # Set build environment variables
-          export CC=gcc
-          export CXX=g++
-          export CMAKE_ARGS="-DLLAMA_FATAL_WARNINGS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++"
+          export CC=/usr/bin/gcc
+          export CXX=/usr/bin/g++
+          export CMAKE_ARGS="-DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DLLAMA_FATAL_WARNINGS=OFF -DCMAKE_BUILD_TYPE=Release"
           if [ "$BUILD_CUDA" = "true" ]; then
             export CMAKE_ARGS="$CMAKE_ARGS -DLLAMA_CUDA=ON"
           fi
           export SKBUILD_CMAKE_ARGS="$CMAKE_ARGS"
-
-          # Build wheel
-          WHEEL_PLATFORM="${PLATFORM}" rye build --verbose
-
-          # Fix permissions
-          chmod -R 777 /workspace/dist
-          EOF
-          chmod +x build.sh
 
       - name: Build wheel
         run: |
