@@ -15,9 +15,9 @@ on:
   push:
     branches:
       - main
-    paths: ['.github/workflows/build.yml', 'llama-cpp-server-py-core/**']
+    paths: ['.github/workflows/build-server.yml', 'llama-cpp-server-py-core/**']
   pull_request:
-    paths: ['.github/workflows/build.yml', 'llama-cpp-server-py-core/**']
+    paths: ['.github/workflows/build-server.yml', 'llama-cpp-server-py-core/**']
   release:
     types: [published]
 
@@ -70,10 +70,17 @@ jobs:
             python3-pip \
             ninja-build
 
-          # Install Rye
+          # Install Rye for non-interactive environments
+          export RYE_NO_AUTO_INSTALL=1
+          export RYE_INSTALL_OPTION="--yes"
           curl -sSf https://rye.astral.sh/get | bash
-          echo 'source "$HOME/.rye/env"' >> ~/.bashrc
-          source "$HOME/.rye/env"
+          # Add Rye to PATH directly since we can't use interactive shell features
+          export PATH="/root/.rye/shims:${PATH}"
+          # Make sure rye is in path for subsequent commands in same shell
+          eval "$(rye self --no-auto-install shell-setup -s bash)"
+          
+          # Verify installation
+          rye --version
 
           # Configure project
           cd /workspace/llama-cpp-server-py-core
