@@ -70,9 +70,10 @@ jobs:
             curl \
             python3-dev \
             python3-pip \
-            pkg-config
+            pkg-config \
+            libstdc++-8-dev
 
-          # Install newer cmake version (Ubuntu 18.04 default is too old)
+          # Install newer cmake version
           wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
           apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
           apt-get update && apt-get install -y cmake
@@ -80,17 +81,19 @@ jobs:
           # Install ninja-build
           apt-get install -y ninja-build
 
-          # Install newer gcc and g++ (optional, use if needed)
+          # Install gcc-8 and g++-8
           apt-get install -y gcc-8 g++-8
           update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 800 --slave /usr/bin/g++ g++ /usr/bin/g++-8
 
-          # Install Rye for non-interactive environments
+          # Configure git for the workspace
+          git config --global --add safe.directory /workspace
+          git config --global --add safe.directory /workspace/llama-cpp-server-py-core/llama.cpp
+
+          # Install Rye
           export RYE_NO_AUTO_INSTALL=1
           export RYE_INSTALL_OPTION="--yes"
           curl -sSf https://rye.astral.sh/get | bash
-          # Add Rye to PATH directly since we can't use interactive shell features
           export PATH="/root/.rye/shims:${PATH}"
-          # Make sure rye is in path for subsequent commands in same shell
           eval "$(rye self --no-auto-install shell-setup -s bash)"
           
           # Verify installation
@@ -104,7 +107,7 @@ jobs:
           # Set build environment variables
           export CC=/usr/bin/gcc
           export CXX=/usr/bin/g++
-          export CMAKE_ARGS="-DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DLLAMA_FATAL_WARNINGS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release"
+          export CMAKE_ARGS="-DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DLLAMA_FATAL_WARNINGS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-lstdc++fs"
           if [ "$BUILD_CUDA" = "true" ]; then
             export CMAKE_ARGS="$CMAKE_ARGS -DLLAMA_CUDA=ON"
           fi
