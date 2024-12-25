@@ -95,7 +95,7 @@ jobs:
           # Set build environment variables
           export CC=/usr/bin/gcc
           export CXX=/usr/bin/g++
-          export CMAKE_ARGS="-DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DLLAMA_FATAL_WARNINGS=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release"
+          export CMAKE_ARGS="-DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DLLAMA_FATAL_WARNINGS=OFF -DGGML_NATIVE=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release"
           if [ "$BUILD_CUDA" = "true" ]; then
             export CMAKE_ARGS="$CMAKE_ARGS -DLLAMA_CUDA=ON"
           fi
