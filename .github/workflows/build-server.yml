@@ -61,6 +61,7 @@ jobs:
           cat > build.sh << 'EOF'
           #!/bin/bash
           set -e
+          export DEBIAN_FRONTEND=noninteractive
 
           # Install system dependencies
           DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y \
