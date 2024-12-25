@@ -59,7 +59,7 @@ jobs:
           cat > build.sh << 'EOF'
           #!/bin/bash
           set -e
-
+          export DEBIAN_FRONTEND=noninteractive
           # Install system dependencies
           apt-get update && apt-get install -y \
             build-essential \
