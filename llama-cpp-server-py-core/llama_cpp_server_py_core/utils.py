@@ -321,7 +321,7 @@ class ServerProcess:
             except:
                 pass
 
-    def start(self, timeout_seconds: int = 60) -> None:
+    def start(self, timeout_seconds: int = 60, fast_check_timeout: int = 2) -> None:
         """Start the server process with monitoring"""
         if self.status != ServerStatus.STOPPED:
             logger.warning("Server is already running or starting")
@@ -381,14 +381,33 @@ class ServerProcess:
             )
             self.health_check_thread.start()
 
-            # Wait for server to start
+            # Wait for server to start with periodic status checks
             start_time = time.time()
+            check_interval = 0.5  # Check every 0.5 seconds
+            
             while time.time() - start_time < timeout_seconds:
+                # Check process status
+                if self.process.poll() is not None:
+                    exit_code = self.process.poll()
+                    if exit_code == 0:
+                        return
+                    error_output = b""
+                    try:
+                        error_output = self.process.stderr.read()
+                    except:
+                        pass
+                    raise RuntimeError(
+                        f"Server process terminated unexpectedly (exit code: {exit_code}). "
+                        f"Error output: {error_output.decode('utf-8', errors='replace')}"
+                    )
+                    
+                # Check server status
                 if self.status == ServerStatus.RUNNING:
                     return
                 elif self.status == ServerStatus.ERROR:
                     raise RuntimeError("Server failed to start properly")
-                time.sleep(0.5)
+                    
+                time.sleep(check_interval)
 
             raise TimeoutError(f"Server did not start within {timeout_seconds} seconds")
 

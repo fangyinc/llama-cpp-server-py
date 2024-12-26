@@ -115,7 +115,7 @@ class LlamaCppServer:
 
     def stream_chat_completion(
         self, request: ChatCompletionRequest
-    ) -> Iterable[CompletionResponse]:
+    ) -> Iterable[ChatCompletionStreamResponse]:
         json_request = dataclasses.asdict(request)
         json_request["stream"] = True
         res = self.server.make_stream_request(

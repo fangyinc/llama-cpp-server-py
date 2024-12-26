@@ -15,9 +15,9 @@ on:
   push:
     branches:
       - main
-    paths: ['.github/workflows/build-server.yml', 'llama-cpp-server*/**']
+    paths: ['.github/workflows/release-pypi.yml', 'llama-cpp-server*/**']
   pull_request:
-    paths: ['.github/workflows/build-server.yml', 'llama-cpp-server*/**']
+    paths: ['.github/workflows/release-pypi.yml', 'llama-cpp-server*/**']
   release:
     types: [published]
 
