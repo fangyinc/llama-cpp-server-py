@@ -192,7 +192,9 @@ class ServerProcess:
                             or len(buffer) > 10
                         ):
                             if buffer:
-                                logger.info("\n".join(buffer))
+                                str_log = "\n".join(buffer)
+                                if "request: GET /health" not in str_log or self.config.debug:
+                                    logger.info(str_log)
                                 buffer.clear()
                                 last_log_time = current_time
 
