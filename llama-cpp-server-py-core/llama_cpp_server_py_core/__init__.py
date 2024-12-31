@@ -98,7 +98,7 @@ class LlamaCppServer:
         for data in res:
             yield CompletionResponse.from_dict(data)
 
-    def chat_completion(self, request: ChatCompletionRequest) -> CompletionResponse:
+    def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         json_request = dataclasses.asdict(request)
         json_request["stream"] = False
         res = self.server.make_request("POST", "/chat/completions", data=json_request)
