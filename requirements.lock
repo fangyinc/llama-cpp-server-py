@@ -11,3 +11,4 @@
 
 -e file:llama-cpp-server-py
 -e file:llama-cpp-server-py-core
+    # via llama-cpp-server-py
