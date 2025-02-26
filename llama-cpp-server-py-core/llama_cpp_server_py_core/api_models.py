@@ -3,11 +3,42 @@ from __future__ import annotations
 import dataclasses
 import time
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union, Type, TypeVar
+
+T = TypeVar("T")
+
+@dataclasses.dataclass
+class BaseParameters:
+    @classmethod
+    def from_dict(cls: Type[T], data: dict, ignore_extra_fields: bool = True) -> T:
+        """Create an instance of the dataclass from a dictionary.
+
+        Args:
+            data: A dictionary containing values for the dataclass fields.
+            ignore_extra_fields: If True, any extra fields in the data dictionary that
+                are not part of the dataclass will be ignored.
+                If False, extra fields will raise an error. Defaults to False.
+        Returns:
+            An instance of the dataclass with values populated from the given
+                dictionary.
+
+        Raises:
+            TypeError: If `ignore_extra_fields` is False and there are fields in the
+                           dictionary that aren't present in the dataclass.
+        """
+        all_field_names = {f.name for f in dataclasses.fields(cls)}
+        if ignore_extra_fields:
+            data = {key: value for key, value in data.items() if key in all_field_names}
+        else:
+            extra_fields = set(data.keys()) - all_field_names
+            if extra_fields:
+                raise TypeError(f"Unexpected fields: {', '.join(extra_fields)}")
+        return cls(**data)
+
 
 
 @dataclasses.dataclass
-class ModelCard:
+class ModelCard(BaseParameters):
     id: str
     object: str = "model"
     created: int = dataclasses.field(default_factory=lambda: int(time.time()))
@@ -16,13 +47,13 @@ class ModelCard:
 
 
 @dataclasses.dataclass
-class ModelList:
+class ModelList(BaseParameters):
     object: str = "list"
     data: List[ModelCard] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass
-class CompletionRequest:
+class CompletionRequest(BaseParameters):
     prompt: Union[str, List[Union[str, int]]] = dataclasses.field(
         metadata={
             "help": "Provide the prompt for this completion as a string or as an array of strings or numbers representing tokens."
@@ -274,7 +305,7 @@ class CompletionRequest:
 
 
 @dataclasses.dataclass
-class GenerationSettings:
+class GenerationSettings(BaseParameters):
     """Settings used for text generation"""
 
     n_predict: int = dataclasses.field(
@@ -428,6 +459,13 @@ class GenerationSettings:
     post_sampling_probs: bool = dataclasses.field(
         metadata={"help": "Whether to calculate post-sampling probabilities"}
     )
+    lora: List[str] = dataclasses.field(
+        default_factory=list, metadata={"help": "List of LoRA samplers to apply in order"}
+    )
+    grammar_trigger_words: List[str] = dataclasses.field(
+        default_factory=list, metadata={"help": "List of trigger words for grammar-based sampling"}
+    ) 
+    
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> GenerationSettings:
@@ -446,11 +484,11 @@ class GenerationSettings:
             data["speculative_n_min"] = data.pop("speculative.n_min")
         if "speculative.p_min" in data:
             data["speculative_p_min"] = data.pop("speculative.p_min")
-        return cls(**data)
-
+        return super().from_dict(data, ignore_extra_fields=True)
+        
 
 @dataclasses.dataclass
-class CompletionResponse:
+class CompletionResponse(BaseParameters):
     """Represents a single message in the completion stream response"""
 
     index: int = dataclasses.field(metadata={"help": "Index"})
@@ -551,7 +589,7 @@ class CompletionResponse:
             data["generation_settings"] = GenerationSettings.from_dict(
                 data["generation_settings"]
             )
-        return cls(**data)
+        return super().from_dict(data, ignore_extra_fields=True)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the response to a dictionary
@@ -572,7 +610,7 @@ class CompletionResponse:
 
 
 @dataclasses.dataclass
-class ChatCompletionRequest:
+class ChatCompletionRequest(BaseParameters):
     messages: Union[
         str,
         List[Dict[str, str]],
@@ -635,13 +673,16 @@ class ChatCompletionRequest:
 
 
 @dataclasses.dataclass
-class ChatMessage:
+class ChatMessage(BaseParameters):
     role: str = dataclasses.field(metadata={"help": "Role of the message."})
     content: str = dataclasses.field(metadata={"help": "Content of the message."})
+    reasoning_content: Optional[str] = dataclasses.field(
+        default=None, metadata={"help": "Reasoning content of reasoning model."}
+    )
 
 
 @dataclasses.dataclass
-class ChatCompletionResponseChoice:
+class ChatCompletionResponseChoice(BaseParameters):
     index: int = dataclasses.field(metadata={"help": "Index of the choice."})
     message: ChatMessage = dataclasses.field(
         metadata={"help": "The generated message."}
@@ -650,30 +691,16 @@ class ChatCompletionResponseChoice:
         default=None, metadata={"help": "Reason for finishing the completion."}
     )
 
-
 @dataclasses.dataclass
-class ChatCompletionResponse:
-    id: str = dataclasses.field(metadata={"help": "ID of the response."})
-    object: str = dataclasses.field(metadata={"help": "Type of the response."})
-    created: int = dataclasses.field(
-        metadata={"help": "Creation timestamp of the response."}
-    )
-    model: str = dataclasses.field(metadata={"help": "Model used for completion."})
-    choices: List[ChatCompletionResponseChoice] = dataclasses.field(
-        metadata={"help": "List of completion choices."}
-    )
-    usage: Optional[Dict[str, Any]] = dataclasses.field(
-        default=None, metadata={"help": "Usage information."}
-    )
-
-
-@dataclasses.dataclass
-class DeltaMessage:
+class DeltaMessage(BaseParameters):
     role: Optional[str] = dataclasses.field(
         default=None, metadata={"help": "Role of the message."}
     )
     content: Optional[str] = dataclasses.field(
         default=None, metadata={"help": "Content of the message."}
+    )
+    reasoning_content: Optional[str] = dataclasses.field(
+        default=None, metadata={"help": "Reasoning content of reasoning model."}
     )
 
 
@@ -768,7 +795,7 @@ class ChatCompletionResponse:
         choices = [
             ChatCompletionResponseChoice(
                 index=choice["index"],
-                message=ChatMessage(**choice["message"]),
+                message=ChatMessage.from_dict(choice["message"]),
                 finish_reason=choice.get("finish_reason"),
             )
             for choice in data["choices"]

@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from queue import Queue
-from typing import Any, Iterator, List, Optional, Set
+from typing import Any, Iterator, List, Optional, Set, Literal
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -98,6 +98,50 @@ class ServerConfig:
     no_context_shift: bool = False
     """disables context shift on inifinite text generation (default: disabled)"""
     no_webui: Optional[bool] = None
+    """disables web UI (default: enabled)"""
+    jinja: bool | None = None
+    """enable jinja templating for chat templates (default: disabled)"""
+    reasoning_format: Literal['deepseek', 'none'] | None = None
+    """
+    reasoning format (default: deepseek; allowed values: deepseek, none)
+        controls whether thought tags are extracted from the response, and in
+        which format they're returned. 'none' leaves thoughts unparsed in
+        `message.content`, 'deepseek' puts them in `message.reasoning_content`
+        (for DeepSeek R1 & Command R7B only).
+        only supported for non-streamed responses
+        (env: LLAMA_ARG_THINK)
+    """
+    chat_template: str | None = None
+    """
+    set custom jinja chat template (default: template taken from model's
+        metadata)
+        if suffix/prefix are specified, template will be disabled
+        only commonly used templates are accepted (unless --jinja is set
+        before this flag):
+        list of built-in templates:
+        chatglm3, chatglm4, chatml, command-r, deepseek, deepseek2, deepseek3,
+        exaone3, falcon3, gemma, gigachat, glmedge, granite, llama2,
+        llama2-sys, llama2-sys-bos, llama2-sys-strip, llama3, megrez, minicpm,
+        mistral-v1, mistral-v3, mistral-v3-tekken, mistral-v7, monarch,
+        openchat, orion, phi3, phi4, rwkv-world, vicuna, vicuna-orca, zephyr
+        (env: LLAMA_ARG_CHAT_TEMPLATE)
+    """
+    chat_template_file: str | None = None
+    """
+    set custom jinja chat template file (default: template taken from
+        model's metadata)
+        if suffix/prefix are specified, template will be disabled
+        only commonly used templates are accepted (unless --jinja is set
+        before this flag):
+        list of built-in templates:
+        chatglm3, chatglm4, chatml, command-r, deepseek, deepseek2, deepseek3,
+        exaone3, falcon3, gemma, gigachat, glmedge, granite, llama2,
+        llama2-sys, llama2-sys-bos, llama2-sys-strip, llama3, megrez, minicpm,
+        mistral-v1, mistral-v3, mistral-v3-tekken, mistral-v7, monarch,
+        openchat, orion, phi3, phi4, rwkv-world, vicuna, vicuna-orca, zephyr
+        (env: LLAMA_ARG_CHAT_TEMPLATE_FILE)
+    """
+
 
 
 class ServerRetryStrategy:
@@ -498,6 +542,15 @@ class ServerProcess:
             args.append("--no-context-shift")
         if self.config.no_webui:
             args.append("--no-webui")
+        if self.config.jinja:
+            args.append("--jinja")
+        if self.config.reasoning_format is not None:
+            args.extend(("--reasoning-format", self.config.reasoning_format))
+        if self.config.chat_template:
+            args.extend(["--chat-template", self.config.chat_template])
+        if self.config.chat_template_file:
+            args.extend(["--chat-template-file", self.config.chat_template_file])
+
 
         # Add LoRA files
         for lora_file in self.config.lora_files:
