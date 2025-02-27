@@ -91,6 +91,7 @@ jobs:
           cd /workspace/llama-cpp-server-py-core
           echo "$PYTHON_VERSION" > .python-version
           rye pin "$PYTHON_VERSION"
+          bash ./scripts/apply-patch.sh
           
           # Set build environment variables
           export CC=/usr/bin/gcc

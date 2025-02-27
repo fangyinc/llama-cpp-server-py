@@ -59,6 +59,7 @@ jobs:
         run: |
           echo "${{ matrix.python-version }}" > .python-version
           rye pin "${{ matrix.python-version }}"
+          bash ./scripts/apply-patch.sh
           rye sync --no-dev
           cd llama-cpp-server-py-core && rye build --sdist && cd ..
           cd llama-cpp-server-py && rye build --sdist && cd ..
