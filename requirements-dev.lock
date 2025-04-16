@@ -78,7 +78,7 @@ fqdn==1.5.1
 fsspec==2025.2.0
     # via huggingface-hub
     # via torch
-gguf==0.14.0
+./llama-cpp-server-py-core/llama.cpp/gguf-py
 h11==0.14.0
     # via httpcore
 httpcore==1.0.7
