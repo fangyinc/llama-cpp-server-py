@@ -22,3 +22,18 @@ If you want sync the cuda dependencies, you can use the following command:
 CMAKE_ARGS="-DGGML_CUDA=ON" rye sync
 ```
 
+## Build Development
+
+To develop the project, you need to build the project.
+
+```bash
+cd llama-cpp-server-py-core
+rye run build-cpp 
+```
+
+If you want build the project with cuda support, you can use the following command:
+
+```bash
+cd llama-cpp-server-py-core
+CMAKE_ARGS="-DGGML_CUDA=ON" rye run build-cpp 
+```

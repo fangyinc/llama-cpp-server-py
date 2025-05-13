@@ -142,12 +142,13 @@ if (LLAMA_BUILD)
             add_compile_definitions(GGML_USE_METAL)
         endif()
 
+        add_subdirectory(llama.cpp/tools/mtmd)
         # Build server
-        add_subdirectory(llama.cpp/examples/server)
+        add_subdirectory(llama.cpp/tools/server)
         llama_cpp_python_install_target(llama-server)
 
         # Build quantize
-        add_subdirectory(llama.cpp/examples/quantize)
+        add_subdirectory(llama.cpp/tools/quantize)
         llama_cpp_python_install_target(llama-quantize)
     endif()
 

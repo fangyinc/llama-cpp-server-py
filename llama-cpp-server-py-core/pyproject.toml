@@ -27,6 +27,7 @@ dev-dependencies = [
 
 [tool.rye.scripts]
 hf2gguf = "llama_cpp_server_py_core/convert_hf_to_gguf.py"
+build-cpp = "pip install --no-deps -e ."
 
 [tool.rye.scripts.quantize]
 cmd = "llama_cpp_server_py_core/lib/llama-quantize"
